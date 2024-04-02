@@ -1,5 +1,4 @@
 #include <Arduino.h>
-// #include <Wire.h>
 #include <micro_ros_platformio.h>
 #include <rmw_microros/rmw_microros.h>
 #include <micro_ros_utilities/type_utilities.h>
@@ -11,8 +10,6 @@
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 
-// #include <std_msgs/msg/int32.h>
-// #include <std_msgs/msg/float32.h>
 #include <geometry_msgs/msg/twist.h> 
 #include <nav_msgs/msg/odometry.h>
 
@@ -23,19 +20,10 @@
 
 
 #include <geometry_msgs/msg/transform_stamped.h>
-// #include <tf2_msgs/msg/tf_message.h>
-
 
 #include <ICM_20948.h>
 #include <TMCStepper.h>
 #include <FastAccelStepper.h> 
-
-
-// #if !defined(MICRO_ROS_TRANSPORT_ARDUINO_SERIAL)
-// #error This example is only avaliable for Arduino framework with serial transport.
-// #endif
-
-// #define USE_WIFI_TRANSPORT
 
 #ifndef TOPIC_PREFIX
 #define TOPIC_PREFIX
@@ -109,14 +97,12 @@ TMC2209Stepper driver_r(&SERIAL_PORT, R_SENSE, DRIVER_R_ADDR);
 using namespace TMC2209_n; 
 
 FastAccelStepperEngine engine = FastAccelStepperEngine(); 
-// FastAccelStepperEngine engine_r = FastAccelStepperEngine(); 
 FastAccelStepper *stepper_l = NULL; 
 FastAccelStepper *stepper_r = NULL; 
 
 
 
 //publisher
-// rcl_publisher_t publisher;
 rcl_publisher_t publisher_imu;
 rcl_publisher_t publisher_mag;
 rcl_publisher_t publisher_temp;
@@ -133,9 +119,7 @@ sensor_msgs__msg__JointState msg_joint_state;
 
 // subscriber
 rcl_subscription_t subscriber;
-// std_msgs__msg__Int32 msg_sub;
 geometry_msgs__msg__Twist msg_sub;
-// sensor_msgs__msg__JointState msg_sub;
 sensor_msgs__msg__JointState msg_joint_cmd;
 
 
@@ -146,7 +130,6 @@ rcl_allocator_t allocator;
 rclc_executor_t executor;
 rcl_timer_t timer;
 
-// unsigned long long time_offset = 0;
 int64_t time_offset = 0;
 
 unsigned int num_handles = 6;   // 1 subscriber, 1 publisher
@@ -212,9 +195,6 @@ void timer_callback_odom(rcl_timer_t * timer, int64_t last_call_time) {
     prev_R = R; 
     float P[2] = {L,R}; 
 
-    // Serial.printf("mL:%i\t dL: %f\t dR: %f\n",mL, dL, dR);
-
-    
     float d = (dL+dR)/2; 
     float d_theta = (dR-dL)/(2*0.081);
     alpha = alpha + d_theta/2;
@@ -228,11 +208,6 @@ void timer_callback_odom(rcl_timer_t * timer, int64_t last_call_time) {
     float z = sin(theta/2);
     float w = cos(theta/2);
 
-
-     
-    // Serial.printf("jsp: Pos x: %f\t Pos y: %f\n");
-
-
     msg_odom.pose.pose.position.x = msg_odom.pose.pose.position.x + x;
     msg_odom.pose.pose.position.y = msg_odom.pose.pose.position.y + y;
     msg_odom.pose.pose.orientation.z = z;
@@ -243,13 +218,9 @@ void timer_callback_odom(rcl_timer_t * timer, int64_t last_call_time) {
       msg_joint_state.velocity.data[i] = V[i];
       msg_joint_state.position.data[i] = P[i];
     }
-    
-
-
 
     RCSOFTCHECK(rcl_publish(&publisher_joint_state, &msg_joint_state, NULL));
     RCSOFTCHECK(rcl_publish(&publisher_odom, &msg_odom, NULL));
-    // Serial.printf("ODOM: Pos x: %f\t Pos y: %f\tjsp:Pos x: %f\t Pos y: %f\n", msg_odom.pose.pose.position.x, msg_odom.pose.pose.position.y, P[0], P[1]);
     Serial.printf("ODOM:Theta: %f\t Alpha: %f\n", theta, alpha);
   }
 
@@ -292,22 +263,11 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time) {
   }
 }
 
-// void subscription_callback(const void * msgin)
-// {  
-//   const std_msgs__msg__Float32 * msg = (const std_msgs__msg__Float32 *)msgin;
-//   //digitalWrite(LED_PIN, (msg->data == 0) ? LOW : HIGH); 
-  
-//   Serial.print("I heard: ");
-//   Serial.println(msg->data); 
-// }
-
 bool syncTime()
 {
     
     const int timeout_ms = 1000;
     if (rmw_uros_epoch_synchronized()) {
-      // Serial.printf("In syncTime(): Synched.\n\r");
-      // while(1);
       return true; // synchronized previously
     }
     // get the current time from the agent
@@ -343,16 +303,9 @@ void subscription_callback(const void * msgin)
   Vl = (V_linx-V_angz);
   Vr = (V_linx+V_angz);
 
-  // sensor_msgs__msg__JointState * msg = (sensor_msgs__msg__JointState *)msgin; 
-  // double Vle = msg->velocity.data[0];
-  // double Vri = msg->velocity.data[1];
-  // Serial.printf("Vl: %f\tVr: %f\n", Vl, Vr);
   int32_t stepsL = (int32_t)(Vl*200*micro);
   int32_t stepsR = (int32_t)(Vr*200*micro);
-  // printf("%f, %f\n\r", V_linx, V_angz);
-  // Serial.print(V_linx);
-  // Serial.print(" ");
-  // Serial.println(V_angz);
+
   if(stepsL < 0) { 
       stepper_l->runBackward();
       
@@ -389,7 +342,6 @@ void subscription_callback(const void * msgin)
 void setup() {
   // Configure serial transport
   IPAddress agent_ip(192, 168, 2, 38);  // Laptop IP Address :)
-  // IPAddress agent_ip(192,168,228,223);
   size_t agent_port = 8888;
 
   char ssid[] = "HyruleCastle";
@@ -484,25 +436,12 @@ void setup() {
 
     msg_odom.header.frame_id.data = "odom";
     msg_odom.header.frame_id.size = sizeof("odom");
-    
-  // create subscriber
-  // RCCHECK(rclc_subscription_init_default(
-  //   &subscriber,
-  //   &node,
-  //   ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry),
-  //   "odom"));
 
     RCCHECK(rclc_subscription_init_default(
     &subscriber,
     &node,
     ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), 
     "/diff_cont/cmd_vel_unstamped")); //"/cmd_vel"));
-
-    // RCCHECK(rclc_subscription_init_default(
-    // &subscriber,
-    // &node,
-    // ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, JointState), 
-    // "/diffbot_joint_commands")); //"/cmd_vel"));
 
   // create timer,
   const unsigned int timer_timeout = 100;
@@ -532,25 +471,12 @@ void setup() {
     &msg_joint_state,
     (micro_ros_utilities_memory_conf_t) {});
 
-    //      // initialize measured joint state message memory
-    // micro_ros_utilities_create_message_memory(
-    // ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, JointState),
-    // &msg_joint_cmd,
-    // (micro_ros_utilities_memory_conf_t) {});
-
     // populate fixed message fields - size, frame ID and joint names for measured joint state
   msg_joint_state.header.frame_id = micro_ros_string_utilities_set(msg_joint_state.header.frame_id, "");
   msg_joint_state.name.size = msg_joint_state.position.size = msg_joint_state.velocity.size = 2;
   msg_joint_state.name.data[0] = micro_ros_string_utilities_set(msg_joint_state.name.data[0], "left_wheel_joint");
   msg_joint_state.name.data[1] = micro_ros_string_utilities_set(msg_joint_state.name.data[1], "right_wheel_joint");
 
-  // msg_joint_cmd.header.frame_id = micro_ros_string_utilities_set(msg_joint_cmd.header.frame_id, "");
-  // msg_joint_cmd.name.size = msg_joint_cmd.position.size = msg_joint_cmd.velocity.size = 2;
-  // msg_joint_cmd.name.data[0] = micro_ros_string_utilities_set(msg_joint_cmd.name.data[0], "left_wheel_joint");
-  // msg_joint_cmd.name.data[1] = micro_ros_string_utilities_set(msg_joint_cmd.name.data[1], "right_wheel_joint");
-
-
-  // msg_pub.data = 0;
   WIRE_PORT.begin();
   WIRE_PORT.setClock(400000);
   myICM.begin(WIRE_PORT, AD0_VAL);
@@ -559,11 +485,8 @@ void setup() {
 
 void loop() {
   int t = millis(); 
-  // delay(100);
   syncTime();
   RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100)));
-  
-  // Serial.printf("Pulse L: %i\tPulse R: %i\n\r", stepper_l->getCurrentPosition(), stepper_r->getCurrentPosition()); 
 
   vTaskDelay(10);  
 
