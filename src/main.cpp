@@ -61,12 +61,12 @@ static inline void set_microros_net_transports(IPAddress agent_ip, uint16_t agen
 
 #define LED_PIN 4
 
-// int AMPS = 2000;
-// int micro = 16;
-// int Maccell = 10000;
-// int Mspeed = 100;
-// int MMperRev = 3.14 * 80;
-// float StepsPerRot = 200;
+int AMPS = 2000;
+int micro = 16;
+int Maccell = 10000;
+int Mspeed = 100;
+int MMperRev = 3.14 * 80;
+float StepsPerRot = 200;
 
 float Vl;
 float Vr;
@@ -75,12 +75,10 @@ float prev_R = 0;
 float alpha = 0;
 float theta = 0;
 
-Driver driver_l(DRIVER_L_ADDR);
-Driver driver_r(DRIVER_R_ADDR);
+Driver driver_l(DRIVER_L_ADDR,AMPS,micro);
+Driver driver_r(DRIVER_R_ADDR,AMPS,micro);
 
-// TMC2209Stepper driver_l(&SERIAL_PORT, R_SENSE, DRIVER_L_ADDR);
-// TMC2209Stepper driver_r(&SERIAL_PORT, R_SENSE, DRIVER_R_ADDR);
-using namespace TMC2209_n;
+// using namespace TMC2209_n;
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper* stepper_l = NULL;
@@ -344,9 +342,6 @@ void setup()
 {
   // Configure serial transport
   Serial.begin(115200);
-
-  driver_l.initialize();
-  driver_r.initialize();
 
   pinMode(LED_PIN, OUTPUT);
   pinMode(5, OUTPUT);
