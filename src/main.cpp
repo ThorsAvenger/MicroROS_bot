@@ -341,14 +341,8 @@ void subscription_callback(const void * msgin)
 
 void setup() {
   // Configure serial transport
-  IPAddress agent_ip(192, 168, 2, 38);  // Laptop IP Address :)
-  size_t agent_port = 8888;
-
-  char ssid[] = "HyruleCastle";
-  char psk[]= "M3G4M4N_X";
   Serial.begin(115200);
-  set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
-  
+
   // set_microros_serial_transports(Serial);
   // TMC2209 setup
   driver_l.begin(); 
@@ -388,11 +382,16 @@ void setup() {
   stepper_r->setAcceleration(1*Maccell);
   stepper_l->setAutoEnable(true);
   stepper_r->setAutoEnable(true);
-  
-  // driver_l.VACTUAL();
-  
 
   delay(100);
+
+  IPAddress agent_ip(192, 168, 2, 38);  // Laptop IP Address :)
+  size_t agent_port = 8888;
+
+  char ssid[] = "HyruleCastle";
+  char psk[]= "M3G4M4N_X";
+
+  set_microros_wifi_transports(ssid, psk, agent_ip, agent_port);
 
   allocator = rcl_get_default_allocator();
 
@@ -462,7 +461,6 @@ void setup() {
   RCCHECK(rclc_executor_init(&executor, &support.context, num_handles, &allocator));  
   RCCHECK(rclc_executor_add_timer(&executor, &timer));
   RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg_sub, &subscription_callback, ON_NEW_DATA));   
-  // RCCHECK(rclc_executor_add_subscription(&executor, &subscriber, &msg_joint_cmd, &subscription_callback, ON_NEW_DATA));
 
 
      // initialize measured joint state message memory
