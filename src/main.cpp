@@ -21,6 +21,11 @@
 #include <sensor_msgs/msg/temperature.h>
 #include <sensor_msgs/msg/joint_state.h>
 
+
+#include <geometry_msgs/msg/transform_stamped.h>
+// #include <tf2_msgs/msg/tf_message.h>
+
+
 #include <ICM_20948.h>
 #include <TMCStepper.h>
 #include <FastAccelStepper.h> 
@@ -97,6 +102,7 @@ float Vr;
 float prev_L = 0; 
 float prev_R = 0;
 float alpha = 0;
+float theta = 0; 
 
 TMC2209Stepper driver_l(&SERIAL_PORT, R_SENSE, DRIVER_L_ADDR);
 TMC2209Stepper driver_r(&SERIAL_PORT, R_SENSE, DRIVER_R_ADDR);
@@ -107,12 +113,6 @@ FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *stepper_l = NULL; 
 FastAccelStepper *stepper_r = NULL; 
 
-
-/*
-    msg_odom.header.stamp.sec = time_stamp.tv_sec;
-    msg_odom.header.stamp.nanosec = time_stamp.tv_nsec;
-        RCSOFTCHECK(rcl_publish(&publisher_odom, &msg_odom, NULL));  
-*/
 
 
 //publisher
@@ -216,13 +216,20 @@ void timer_callback_odom(rcl_timer_t * timer, int64_t last_call_time) {
 
     
     float d = (dL+dR)/2; 
-    float d_theta = (dR-dL)/(2*0.075*M_PI);
+    float d_theta = (dR-dL)/(2*0.081);
     alpha = alpha + d_theta/2;
-    float x = cos(alpha)*d;
-    float y = sin(alpha)*d; 
+   
 
-    float z = sin(alpha/2);
-    float w = cos(alpha/2);
+    float x = cos(theta+d_theta/2)*d;
+    float y = sin(theta+d_theta/2)*d;
+
+    theta = theta +d_theta;
+
+    float z = sin(theta/2);
+    float w = cos(theta/2);
+
+
+     
     // Serial.printf("jsp: Pos x: %f\t Pos y: %f\n");
 
 
@@ -242,8 +249,8 @@ void timer_callback_odom(rcl_timer_t * timer, int64_t last_call_time) {
 
     RCSOFTCHECK(rcl_publish(&publisher_joint_state, &msg_joint_state, NULL));
     RCSOFTCHECK(rcl_publish(&publisher_odom, &msg_odom, NULL));
-    Serial.printf("ODOM: Pos x: %f\t Pos y: %f\tjsp:Pos x: %f\t Pos y: %f\n", msg_odom.pose.pose.position.x, msg_odom.pose.pose.position.y, P[0], P[1]);
-
+    // Serial.printf("ODOM: Pos x: %f\t Pos y: %f\tjsp:Pos x: %f\t Pos y: %f\n", msg_odom.pose.pose.position.x, msg_odom.pose.pose.position.y, P[0], P[1]);
+    Serial.printf("ODOM:Theta: %f\t Alpha: %f\n", theta, alpha);
   }
 
 }
@@ -339,7 +346,7 @@ void subscription_callback(const void * msgin)
   // sensor_msgs__msg__JointState * msg = (sensor_msgs__msg__JointState *)msgin; 
   // double Vle = msg->velocity.data[0];
   // double Vri = msg->velocity.data[1];
-  Serial.printf("Vl: %f\tVr: %f\n", Vl, Vr);
+  // Serial.printf("Vl: %f\tVr: %f\n", Vl, Vr);
   int32_t stepsL = (int32_t)(Vl*200*micro);
   int32_t stepsR = (int32_t)(Vr*200*micro);
   // printf("%f, %f\n\r", V_linx, V_angz);
@@ -381,8 +388,8 @@ void subscription_callback(const void * msgin)
 
 void setup() {
   // Configure serial transport
-  // IPAddress agent_ip(192, 168, 2, 6);  // Laptop IP Address :)
-  IPAddress agent_ip(192,168,228,223);
+  IPAddress agent_ip(192, 168, 2, 38);  // Laptop IP Address :)
+  // IPAddress agent_ip(192,168,228,223);
   size_t agent_port = 8888;
 
   char ssid[] = "HyruleCastle";
@@ -558,6 +565,6 @@ void loop() {
   
   // Serial.printf("Pulse L: %i\tPulse R: %i\n\r", stepper_l->getCurrentPosition(), stepper_r->getCurrentPosition()); 
 
-  vTaskDelay(20);  
+  vTaskDelay(10);  
 
 }
