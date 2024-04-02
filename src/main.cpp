@@ -61,12 +61,12 @@ static inline void set_microros_net_transports(IPAddress agent_ip, uint16_t agen
 
 #define LED_PIN 4
 
-int AMPS = 2000;
-int micro = 16;
-int Maccell = 10000;
-int Mspeed = 100;
-int MMperRev = 3.14 * 80;
-float StepsPerRot = 200;
+// int AMPS = 2000;
+// int micro = 16;
+// int Maccell = 10000;
+// int Mspeed = 100;
+// int MMperRev = 3.14 * 80;
+// float StepsPerRot = 200;
 
 float Vl;
 float Vr;
@@ -74,7 +74,6 @@ float prev_L = 0;
 float prev_R = 0;
 float alpha = 0;
 float theta = 0;
-
 
 Driver driver_l(DRIVER_L_ADDR);
 Driver driver_r(DRIVER_R_ADDR);
@@ -346,29 +345,8 @@ void setup()
   // Configure serial transport
   Serial.begin(115200);
 
-  // set_microros_serial_transports(Serial);
-  // TMC2209 setup
-  driver_l.driver.begin();
-  driver_r.driver.begin();
-
-  driver_l.driver.toff(0);  // 2
-  driver_l.driver.blank_time(24);
-  driver_r.driver.toff(0);  // 2
-  driver_r.driver.blank_time(24);
-
-  driver_l.driver.hysteresis_start(1);
-  driver_l.driver.hysteresis_end(12);
-  driver_r.driver.hysteresis_start(1);
-  driver_r.driver.hysteresis_end(12);
-
-  driver_l.driver.rms_current(AMPS, 0.01);
-  driver_r.driver.rms_current(AMPS, 0.01);
-
-  driver_l.driver.microsteps(micro);
-  driver_l.driver.en_spreadCycle(false);
-  driver_r.driver.microsteps(micro);
-  driver_r.driver.en_spreadCycle(false);
-  driver_r.driver.shaft(0);
+  driver_l.initialize();
+  driver_r.initialize();
 
   pinMode(LED_PIN, OUTPUT);
   pinMode(5, OUTPUT);
