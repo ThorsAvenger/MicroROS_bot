@@ -31,5 +31,6 @@ class Driver
 public:
   Driver(uint8_t address, int amps, int micro);
 
+private:
   TMC2209Stepper driver;
 };

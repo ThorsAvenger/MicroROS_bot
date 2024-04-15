@@ -11,4 +11,5 @@ Driver::Driver(uint8_t address, int amps, int micro) : driver(&SERIAL_PORT, R_SE
   driver.rms_current(amps, 0.01);
   driver.microsteps(micro);
   driver.en_spreadCycle(false);
+
 }
