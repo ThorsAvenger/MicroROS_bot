@@ -17,6 +17,7 @@
 #include <sensor_msgs/msg/magnetic_field.h>
 #include <sensor_msgs/msg/temperature.h>
 #include <sensor_msgs/msg/joint_state.h>
+#include <sensor_msgs/msg/battery_state.h>
 #include "Driver.hpp"
 #include "Stepper.hpp"
 
@@ -68,7 +69,7 @@ int prev_time = 0;
 
 int AMPS = 2000;
 int micro = 16;
-int Maccell = 10000;
+int Maccell = 20000;
 int Mspeed = 100;
 int MMperRev = 3.14 * 80;
 float StepsPerRot = 200;
@@ -80,9 +81,16 @@ float prev_R = 0;
 float alpha = 0;
 float theta = 0;
 
-// Driver driver_l(DRIVER_L_ADDR,AMPS,micro);
-// Driver driver_r(DRIVER_R_ADDR,AMPS,micro);
-// // Stepper123 steppert;
+
+
+Driver driver_l(DRIVER_L_ADDR,AMPS,micro);
+Driver driver_r(DRIVER_R_ADDR,AMPS,micro);
+
+// Stepper123 steppert;
+FastAccelStepperEngine engine = FastAccelStepperEngine();
+FastAccelStepper* stepper_l = NULL;
+FastAccelStepper* stepper_r = NULL;
+
 HardwareSerial& serial_stream = Serial2;
 TMC2209 DRV09_L;
 TMC2209 DRV09_R;
@@ -140,34 +148,34 @@ ICM_20948_I2C myICM;
 #define _POSIX_TIMERS 0
 
 /// start new driver lib ///
-// Pin configuration
-const int pwmPin = 0;         // Change this to the appropriate pin
-const int inputPin = pwmPin;  // Change this to the appropriate pin
-const int dirPin = 26;
-const int enPin = 25;
+// // Pin configuration
+// const int pwmPin = 0;         // Change this to the appropriate pin
+// const int inputPin = pwmPin;  // Change this to the appropriate pin
+// const int dirPin = 26;
+// const int enPin = 25;
 
-volatile int pulseCount = 0;
+// volatile int pulseCount = 0;
 
-void IRAM_ATTR handleInterrupt()
-{
-  if (digitalRead(dirPin))
-    pulseCount++;
-  else
-    pulseCount--;
-}
+// void IRAM_ATTR handleInterrupt()
+// {
+//   if (digitalRead(dirPin))
+//     pulseCount++;
+//   else
+//     pulseCount--;
+// }
 
-void pwmTaskSetup(void) // stepPin, stepPin, handleCntr_int, enPin
-{
-                                                     // Default frequency is 1 kHz
-  ledcSetup(10, 0, 8);                            // channel 0, 8-bit resolution
-  ledcAttachPin(pwmPin, 10);                        // Attach PWM channel to pin
-  attachInterrupt(digitalPinToInterrupt(inputPin), handleInterrupt, RISING);  // Attach interrupt
-  // digitalWrite(enPin, LOW);
-  pinMode(dirPin, OUTPUT);
-  pinMode(enPin, OUTPUT);
-  // Generate PWM signal with 50% duty cycle
-  ledcWrite(10, 8); // 128
-}
+// void pwmTaskSetup(void) // stepPin, stepPin, handleCntr_int, enPin
+// {
+//                                                      // Default frequency is 1 kHz
+//   ledcSetup(10, 0, 8);                            // channel 0, 8-bit resolution
+//   ledcAttachPin(pwmPin, 10);                        // Attach PWM channel to pin
+//   attachInterrupt(digitalPinToInterrupt(inputPin), handleInterrupt, RISING);  // Attach interrupt
+//   // digitalWrite(enPin, LOW);
+//   pinMode(dirPin, OUTPUT);
+//   pinMode(enPin, OUTPUT);
+//   // Generate PWM signal with 50% duty cycle
+//   ledcWrite(10, 8); // 128
+// }
 
 //// End of new driver lib
 
@@ -213,15 +221,20 @@ void timer_callback_odom(rcl_timer_t* timer, int64_t last_call_time)
     msg_joint_state.header.stamp.nanosec = time_stamp.tv_nsec;
 
     // stepper_l->getCurrentSpeedInMilliHz();
-    int mL = DRV09_L.getMicrostepCounter();//stepper_l->getCurrentPosition();
-    int mR = DRV09_R.getMicrostepCounter();//stepper_r->getCurrentPosition();
-    int vL = DRV09_L.getInterstepDuration();//stepper_l->getCurrentSpeedInUs();
-    int vR = DRV09_R.getInterstepDuration();;//stepper_r->getCurrentSpeedInUs();
+    // int mL = DRV09_L.getMicrostepCounter();   
+    // int mR = DRV09_R.getMicrostepCounter();
+    // int vL = DRV09_L.getInterstepDuration();
+    // int vR = DRV09_R.getInterstepDuration();
+    int mL = stepper_l->getCurrentPosition();
+    int mR = stepper_r->getCurrentPosition();
+    int vL = stepper_l->getCurrentSpeedInUs();
+    int vR = stepper_r->getCurrentSpeedInMilliHz();
 
-    // Serial.printf("mL: %i\t mR: %i\n", mL, mR);
+    Serial.printf("vL: %i\t vR: %f\n", vL, (float)vR/(1000*micro*200));
     
     // Serial.printf("vL: %f\t vR: %i\n", (float)(18.75 / (vL*M_PI)), vR);
-    float V[2] = { 18.75 / (vL*M_PI), Vr / (M_PI * 18.75) }; // 243.375*M_PI * 0.08
+    // float V[2] = { 18.75 / (vL*M_PI), Vr / (M_PI * 18.75) }; // 243.375*M_PI * 0.08
+    float V[2] = {Vl/(M_PI*0.08),Vr/(M_PI*0.08)}; 
     float L = (mL / (micro * StepsPerRot)) * 2 * M_PI;
     float R = (mR / (micro * StepsPerRot)) * 2 * M_PI;
 
@@ -232,7 +245,7 @@ void timer_callback_odom(rcl_timer_t* timer, int64_t last_call_time)
     float P[2] = { L, R };
 
     float d = (dL + dR) / 2;
-    float d_theta = (dR - dL) / (2 * 0.081);
+    float d_theta = (dL - dR) / (2 * 0.081);
     alpha = alpha + d_theta / 2;
 
     float x = cos(theta + d_theta / 2) * d;
@@ -268,11 +281,11 @@ void timer_callback(rcl_timer_t* timer, int64_t last_call_time)
 
     if (myICM.dataReady())
     {
-      Serial.println("Got imu data");
+      // Serial.println("Got imu data");
       myICM.getAGMT();
     }
     
-    Serial.println(myICM.accX());
+    // Serial.println(myICM.accX());
     msg_imu.linear_acceleration.x = myICM.accX();
     msg_imu.linear_acceleration.y = myICM.accY();
     msg_imu.linear_acceleration.z = myICM.accZ();
@@ -336,64 +349,58 @@ void subscription_callback(const void* msgin)
   float V_linx = msg->linear.x;  // m/s to rad/s by dividing by r
   float V_angz = msg->angular.z*2*M_PI;
   // digitalWrite(LED_PIN, (msg->data == 0) ? LOW : HIGH);
-  Vl = (V_linx - V_angz*(0.162/2));
-  Vr = (V_linx + V_angz*(0.162/2));
+  Vl = (V_linx + V_angz*(0.162/2));
+  Vr = (V_linx - V_angz*(0.162/2));
 
-  int32_t stepsL = (int32_t)(Vl * 200 * micro*1.39);
-  int32_t stepsR = (int32_t)(Vr * 200 * micro*1.39);
+  int32_t stepsL = (int32_t)(Vl * 200 * micro); // *1.39);
+  int32_t stepsR = (int32_t)(Vr * 200 * micro); // *1.39);
   // Serial.printf("steps/s: %i\n", stepsL);
-  DRV09_L.moveAtVelocity(stepsL);
-  DRV09_R.moveAtVelocity(stepsR);
+
+  // DRV09_L.moveAtVelocity(stepsL);
+  // DRV09_R.moveAtVelocity(stepsR);
   
   
-  // if (stepsL < 0)
-  // {
-  //   // stepper_l->runBackward();
-  // }
-  // else
-  // {
-  //   // stepper_l->runForward();
-  // }
-  // if (stepsR < 0)
-  // {
+  if (stepsL < 0)
+  {
+    stepper_l->runBackward();
+  }
+  else
+  {
+    stepper_l->runForward();
+  }
+  if (stepsR < 0)
+  {
+    stepper_r->runBackward();
+    // digitalWrite(dirPin, LOW);
+  }
+  else
+  {
+    stepper_r->runForward();
+    // digitalWrite(dirPin, HIGH);
+  }
+  if ((abs(stepsL) > 10) | (abs(stepsR) > 10))
+  {
     
-  //   // stepper_driver_R.disableInverseMotorDirection();
-  //   // stepper_r->runBackward();
-  //   digitalWrite(dirPin, LOW);
-  // }
-  // else
-  // {
-  //   // stepper_driver_R.enableInverseMotorDirection();
-  //   // stepper_r->runForward();
-  //   digitalWrite(dirPin, HIGH);
-  // }
-  // if ((abs(stepsL) > 10) | (abs(stepsR) > 10))
-  // {
+    // driver_l.VACTUAL(Vl);
+    stepper_l->setSpeedInHz(abs(stepsL));
+    stepper_l->applySpeedAcceleration();
     
-  //   // driver_l.VACTUAL(Vl);
-  //   // stepper_l->setSpeedInHz(abs(stepsL));
-  //   // stepper_l->applySpeedAcceleration();
 
-  //   ledcChangeFrequency(10, abs(stepsR),8);
-  //   digitalWrite(enPin, LOW);
-  //   // stepper_r->setSpeedInHz(abs(stepsR));
-  //   // stepper_r->applySpeedAcceleration();
+    stepper_r->setSpeedInHz(abs(stepsR));
+    stepper_r->applySpeedAcceleration();
 
-  //   // stepper_driver_R.enable();
-  //   digitalWrite(4, HIGH);
-  // }
-  // else
-  // {
-  //   // Serial.println("motor off");
-  //   // stepper_l->stopMove();
-  //   // stepper_r->stopMove();
-  //   ledcChangeFrequency(10, 0,8);
-  //   //  ledcDetachPin(pwmPin);                        // Attach PWM channel to pin
+    // stepper_driver_R.enable();
+    digitalWrite(4, HIGH);
+  }
+  else
+  {
+    // Serial.println("motor off");
+    stepper_l->stopMove();
+    stepper_r->stopMove();
 
-  //   digitalWrite(enPin, HIGH);
-  //   // stepper_driver_R.disable();
-  //   digitalWrite(4, LOW);
-  // }
+    // stepper_driver_R.disable();
+    digitalWrite(4, LOW);
+  }
 }
 
 void setup()
@@ -406,27 +413,27 @@ void setup()
   digitalWrite(LED_PIN, HIGH);
   pinMode(A0, INPUT); 
 
-  // engine.init();
+  engine.init();
   // steppert.engine->init();
-  // stepper_l = steppert.engine->stepperConnectToPin(STEP_PIN_L);
-  // stepper_r = steppert.engine->stepperConnectToPin(STEP_PIN_R);
-  // stepper_l->setDirectionPin(DIR_PIN_L);
-  // stepper_r->setDirectionPin(DIR_PIN_R);
-  // stepper_l->setEnablePin(EN_PIN);
-  // stepper_r->setEnablePin(EN_PIN);
-  // stepper_l->setAcceleration(1 * Maccell);
-  // stepper_r->setAcceleration(1 * Maccell);
-  // stepper_l->setAutoEnable(true);
-  // stepper_r->setAutoEnable(true);
+  stepper_l = engine.stepperConnectToPin(STEP_PIN_L); //steppert.
+  stepper_r = engine.stepperConnectToPin(STEP_PIN_R); //steppert.
+  stepper_l->setDirectionPin(DIR_PIN_L);
+  stepper_r->setDirectionPin(DIR_PIN_R);
+  stepper_l->setEnablePin(EN_PIN);
+  stepper_r->setEnablePin(EN_PIN);
+  stepper_l->setAcceleration(1 * Maccell);
+  stepper_r->setAcceleration(1 * Maccell);
+  stepper_l->setAutoEnable(true);
+  stepper_r->setAutoEnable(true);
 
-  DRV09_L.setup(serial_stream, 256000, TMC2209::SERIAL_ADDRESS_3, 17, 16);
-  DRV09_L.setRunCurrent(50); 
+  DRV09_L.setup(serial_stream, 256000, TMC2209::SERIAL_ADDRESS_1, 17, 16);
+  DRV09_L.setRunCurrent(100); 
   DRV09_L.enableAutomaticCurrentScaling();
   DRV09_L.enableAutomaticGradientAdaptation();
   DRV09_L.enableAnalogCurrentScaling();
   DRV09_L.setMicrostepsPerStep(micro); 
   DRV09_L.setStandstillMode(TMC2209::NORMAL);
-  DRV09_L.enableInverseMotorDirection();
+  // DRV09_L.enableInverseMotorDirection();
   TMC2209::Settings sett_left = DRV09_L.getSettings();
   if(sett_left.is_setup) {
     Serial.printf("Left Driver all set up\n");
@@ -434,17 +441,17 @@ void setup()
   }
   else{
     Serial.printf("Left Driver not setup.\n Stayning here forever");
-    while(1);
+    // while(1);
   }
   delay(100);
-  DRV09_R.setup(serial_stream, 256000, TMC2209::SERIAL_ADDRESS_1, 17, 16);
-  DRV09_R.setRunCurrent(50); 
+  DRV09_R.setup(serial_stream, 256000, TMC2209::SERIAL_ADDRESS_3, 17, 16);
+  DRV09_R.setRunCurrent(100); 
   DRV09_R.enableAutomaticCurrentScaling();
   DRV09_R.enableAutomaticGradientAdaptation();
   DRV09_R.enableAnalogCurrentScaling();
   DRV09_R.setMicrostepsPerStep(micro); 
   DRV09_R.setStandstillMode(TMC2209::NORMAL);
-  DRV09_R.enableInverseMotorDirection();
+  // DRV09_R.enableInverseMotorDirection();
   TMC2209::Settings sett_right = DRV09_R.getSettings();
   if(sett_right.is_setup) {
     Serial.printf("Right Driver all set up\n");
@@ -452,7 +459,7 @@ void setup()
   }
   else{
     Serial.printf("Right Driver not setup.\n Stayning here forever");
-    while(1);
+    // while(1);
   }
 
   delay(100);
@@ -493,10 +500,10 @@ void setup()
   msg_odom.header.frame_id.size = sizeof("odom");
 
   RCCHECK(rclc_subscription_init_default(&subscriber, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
-                                         "/cmd_vel_limited")); //"/diff_cont/cmd_vel_unstamped"));  //
+                                         "/cmd_vel")); //"/diff_cont/cmd_vel_unstamped"));  //
 
   // create timer,
-  const unsigned int timer_timeout = 10;
+  const unsigned int timer_timeout = 100;
   RCCHECK(rclc_timer_init_default(&timer, &support, RCL_MS_TO_NS(timer_timeout), timer_callback));
 
   const unsigned int timer_timeout_odom = 100;
@@ -530,7 +537,6 @@ void loop()
 {
   TickType_t xLastWakeTime = xTaskGetTickCount();
   
-  int t = millis();
   syncTime();
   RCSOFTCHECK(rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100)));
 
